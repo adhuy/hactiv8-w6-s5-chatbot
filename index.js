@@ -14,6 +14,7 @@ const ai = new GoogleGenAI({});
 // insialisasi model AI
 const geminiModels = {
   text: "gemini-2.5-flash-lite",
+  chat: "gemini-2.5-pro",
   image: "gemini-2.5-flash",
   document: "gemini-2.5-flash",
   audio: "gemini-2.5-flash",
@@ -22,6 +23,7 @@ const geminiModels = {
 // insialisasi aplikasi backend/server
 app.use(cors()); // mengizinkan request dari semua origin
 app.use(express.json()); // mengizinkan request dengan format JSON
+app.use(express.static('static')); // ketika diakses di localhost:3000
 
 // generate text
 app.post('/generate-text', async (req, res) => {
@@ -140,6 +142,69 @@ app.post('/generate-from-audio', upload.single('audio'), async (req, res) => {
     res.json({ output: resp.text });
   }catch (err){
     res.status(500).json({ error: err.message });
+  }
+});
+
+// chat
+app.post('/chat', async (req, res) => {
+  try {
+    const { conversation } = req.body;
+
+    if(!conversation || !Array.isArray(conversation)) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        message: "Percakapan tidak valid"
+      });
+    }
+
+    let dataIsInvalid = false;
+
+    conversation.forEach(item => {
+      if (!item) {
+        dataIsInvalid = true;
+      } else if (typeof item !== 'object') {
+        dataIsInvalid = true;
+      } else if (!item.role || !item.message) {
+        dataIsInvalid = true;
+      }
+    });
+
+    if(dataIsInvalid) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: "Ada data yang invalid pada percakapan yang dikirim"
+      });
+    }
+
+    // mapping
+    const content = conversation.map(item => {
+      return {
+        role: item.role,
+        parts: [
+          { text: item.message },
+        ]
+      };
+    });
+
+    const aiResponse = await ai.models.generateContent({
+      model: geminiModels.chat,
+      contents: content,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: aiResponse.text,
+      message: "Berhasil"
+    });
+
+  }catch (err) {
+    return res.status(e.code || 500).json({
+      success: false,
+      data: null,
+      message: e.message
+    });
   }
 });
 
